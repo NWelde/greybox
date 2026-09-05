@@ -35,6 +35,8 @@ are grouped as Added, Fixed, or Docs.
 
 ### Fixed
 
+- Bounded runner limits by the values the verifier enforces, rejecting them before
+  any episode row is written; `play` could previously record traces `verify` refused.
 - Framed the isolated parser's reply with a per-invocation sentinel; stray adapter
   stdout no longer corrupts the reply or misclassifies a correct parser as broken.
 - Retained the failing observation in the repair corpus instead of dropping it when

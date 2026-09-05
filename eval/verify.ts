@@ -4,6 +4,7 @@ import type {
   VerificationReport,
 } from "../agent/contracts";
 import { gameCommand, gameIdentity, ROOT } from "../agent/game";
+import { MAX_COMMANDS, MAX_EPISODE_MS, MAX_OUTPUT_BYTES, MAX_RESPONSE_MS } from "../agent/runner";
 import type { Episode, Limits } from "../agent/store";
 import { ProcessTransport, RunError, within } from "../agent/transport";
 import { checkOutcome, outcomeMessage, type Outcome } from "../game-test/lifecycle";
@@ -18,10 +19,6 @@ import {
 import { createRng } from "../game-test/rng";
 import { createInitialState, type GameState } from "../game-test/world";
 
-const MAX_COMMANDS = 200;
-const MAX_RESPONSE_MS = 30_000;
-const MAX_EPISODE_MS = 300_000;
-const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
 const INVARIANT_VERSION = 1;
 
 interface Prefix {

@@ -38,9 +38,12 @@ Completed this session:
 - An independent contract audit of the adapter subsystem; its four findings are
   fixed and recorded in `agent.md` under "Milestone 5 completion and adapter audit",
   along with two accepted known limitations.
+- A live acceptance attempt (episode below) that failed on provider availability
+  and exposed a runner/verifier limit-bound mismatch, now fixed: the runner
+  enforces the verifier's four bounds before writing any episode row.
 
-Validation: `bun --no-env-file test agent eval game-test` reports **159 passing
-tests and only the two intentional planted-bug failures** (161 tests, 18 files).
+Validation: `bun --no-env-file test agent eval game-test` reports **161 passing
+tests and only the two intentional planted-bug failures** (163 tests, 18 files).
 `git diff --check` is clean. No TypeScript type-checker is configured. Preserve
 the two intentionally failing `PLANTED BUG` tests — overheal and decreasing
 cumulative score. They are the experiment target, not regressions to fix.
@@ -65,15 +68,22 @@ Live evidence in ignored `runs/greybox.sqlite` (unchanged this session):
   reported a free-tier request limit of five. Independent verification passed
   through observation 6; outcome still playing, no findings. No more live calls
   were made after this quota failure.
+- `43b7b389-6f9b-49e6-86cf-7a2a7f93114e` (2026-09-05, this session): explicit
+  3.6 Flash / low thinking, `--model-interval-ms 13000`. One command (`west`,
+  913 known tokens), then HTTP 503 with unknown usage; stopped without retry.
+  Provider availability, not quota — pacing never reached a rate limit. Recorded
+  with `--episode-ms 420000`, which `verify` refuses, so this trace is
+  unverifiable; that defect is now fixed but the episode stays unverifiable.
 
 Next steps:
 
-1. Live acceptance is the only thing standing between here and batch 3. Run one
-   bounded episode when quota permits, accounting for the observed five-request
-   free-tier limit — `--model-interval-ms 13000` is the development pacing
-   choice. Then `verify`, and `replay` only if the trace is complete. Never
-   automatically retry an unknown-usage call, switch models inside an episode,
-   or replay a quota-failed episode.
+1. Live acceptance is still the only thing standing between here and batch 3.
+   One attempt this session failed on HTTP 503 provider availability after a
+   single command. Retry when the provider recovers, staying within the enforced
+   limits (`--episode-ms 300000`) and keeping `--model-interval-ms 13000` for the
+   observed five-request free-tier limit. Then `verify`, and `replay` only if the
+   trace is complete. Never automatically retry an unknown-usage call, switch
+   models inside an episode, or replay a failed episode without being asked.
 2. No live adapter-generation call has been made. A `frozen` or `repair` episode
    costs extra authoring calls on top of policy calls; budget for that against
    the same quota before attempting one.
@@ -82,9 +92,9 @@ Next steps:
    reproducible prefixes only. Mocked-model integration tests independently
    confirm both planted bugs and a natural win.
 
-The earlier implementation was committed and pushed to `origin/main` as
-`fc157bd` (`Add recorded agent execution and verified findings`). The adapter
-work is not yet in a commit. Preserve user-owned `.env` changes. Never reset or
+The adapter work was committed and pushed to `origin/main` as `14f50ba`
+(`Add adapter synthesis, repair, and withheld evaluation`), on top of `fc157bd`.
+The limit-bound fix and this handoff update are not yet in a commit. Preserve user-owned `.env` changes. Never reset or
 clean the tree to establish a baseline. Sol workers implemented the Gemini
 client, verifier, and persistence tests. Astra identified two verifier issues and
 built the adapter lifecycle. This session's subagents wrote the withheld-evaluator

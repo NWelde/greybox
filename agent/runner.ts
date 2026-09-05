@@ -7,10 +7,25 @@ export const DEFAULT_LIMITS: Limits = {
   maxCommands: 200, responseMs: 5000, episodeMs: 300_000, maxOutputBytes: 1_048_576,
 };
 
+// Shared with eval/verify.ts, which independently re-validates every recorded
+// episode against these same bounds. Keep the two in lock step: a limit the
+// runner accepts but the verifier would reject records an episode that can
+// never be independently verified.
+export const MAX_COMMANDS = 200;
+export const MAX_RESPONSE_MS = 30_000;
+export const MAX_EPISODE_MS = 300_000;
+export const MAX_OUTPUT_BYTES = 16 * 1024 * 1024;
+
+const LIMIT_BOUNDS: Record<keyof Limits, number> = {
+  maxCommands: MAX_COMMANDS, responseMs: MAX_RESPONSE_MS,
+  episodeMs: MAX_EPISODE_MS, maxOutputBytes: MAX_OUTPUT_BYTES,
+};
+
 export function validateLimits(limits: Limits): void {
-  for (const [name, value] of Object.entries(limits)) {
-    if (!Number.isSafeInteger(value) || value <= 0 || value > 2_147_483_647) {
-      throw new Error(`${name} must be a positive integer at most 2147483647`);
+  for (const [name, value] of Object.entries(limits) as [keyof Limits, number][]) {
+    const maximum = LIMIT_BOUNDS[name];
+    if (!Number.isSafeInteger(value) || value <= 0 || value > maximum) {
+      throw new Error(`${name} must be a positive integer at most ${maximum}`);
     }
   }
 }

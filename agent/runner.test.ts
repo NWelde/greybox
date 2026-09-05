@@ -6,7 +6,7 @@ import { Database } from "bun:sqlite";
 import { gameIdentity } from "./game";
 import { ROOT } from "./game";
 import { replay } from "./replay";
-import { DEFAULT_LIMITS, runScript } from "./runner";
+import { DEFAULT_LIMITS, MAX_COMMANDS, MAX_EPISODE_MS, MAX_OUTPUT_BYTES, MAX_RESPONSE_MS, runScript } from "./runner";
 import { Store } from "./store";
 import { ProcessTransport, RunError, type Transport } from "./transport";
 
@@ -114,6 +114,35 @@ describe("record and replay", () => {
     }
     await expect(runScript({ store, seed: 42, commands: ["north\nsouth"] })).rejects.toThrow("one line");
     await expect(runScript({ store, seed: 42, commands: [], limits: { responseMs: 0 } })).rejects.toThrow("positive integer");
+  });
+
+  test("a limit beyond the verifier's bound is rejected before any episode row is written", async () => {
+    const { store, path } = await makeStore();
+    const overLimits: [string, Partial<import("./store").Limits>, number][] = [
+      ["maxCommands", { maxCommands: MAX_COMMANDS + 1 }, MAX_COMMANDS],
+      ["responseMs", { responseMs: MAX_RESPONSE_MS + 1 }, MAX_RESPONSE_MS],
+      ["episodeMs", { episodeMs: MAX_EPISODE_MS + 1 }, MAX_EPISODE_MS],
+      ["maxOutputBytes", { maxOutputBytes: MAX_OUTPUT_BYTES + 1 }, MAX_OUTPUT_BYTES],
+    ];
+    for (const [name, limits, bound] of overLimits) {
+      await expect(runScript({ store, seed: 42, commands: [], limits }))
+        .rejects.toThrow(`${name} must be a positive integer at most ${bound}`);
+    }
+    const witness = new Database(path, { readonly: true });
+    try {
+      expect(witness.query("SELECT COUNT(*) AS count FROM episodes").get()).toEqual({ count: 0 });
+    } finally { witness.close(); }
+  });
+
+  test("each limit at exactly the verifier's maximum still records a complete episode", async () => {
+    const { store } = await makeStore();
+    const episode = await runScript({ store, seed: 42, commands: [], limits: {
+      maxCommands: MAX_COMMANDS, responseMs: MAX_RESPONSE_MS, episodeMs: MAX_EPISODE_MS, maxOutputBytes: MAX_OUTPUT_BYTES,
+    } });
+    expect(episode.status).toBe("complete");
+    expect(episode.config.limits).toEqual({
+      maxCommands: MAX_COMMANDS, responseMs: MAX_RESPONSE_MS, episodeMs: MAX_EPISODE_MS, maxOutputBytes: MAX_OUTPUT_BYTES,
+    });
   });
 });
 

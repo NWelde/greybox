@@ -474,3 +474,22 @@ inside a string is rejected and burns a candidate attempt; and the authoring
 prompt's ban on `eval`, `Function`, clocks and randomness is unenforced, with
 nondeterminism caught only probabilistically by the two-run check. Both are
 bounded and consistent with this being local prototype containment.
+
+## Live acceptance attempt and limit-bound defect (2026-09-05)
+
+Episode `43b7b389-6f9b-49e6-86cf-7a2a7f93114e`: explicit 3.6 Flash / low thinking,
+seed 42, `--model-interval-ms 13000`. One successful command (`west`, 913 reported
+tokens), then HTTP 503 with unknown usage. The player stopped without retrying and
+recorded the call as indeterminate. This is provider availability, not the free-tier
+quota; the pacing never reached a rate limit. Batch 2 live acceptance is still not
+achieved.
+
+The attempt exposed a real defect. `runner.ts` validated every limit against one
+generic 2^31 bound while `eval/verify.ts` enforced field-specific maxima, so
+`--episode-ms 420000` was accepted, recorded, and then refused by `verify`
+permanently. A trace that cannot be independently verified defeats the purpose of
+recording it. The four bounds (`maxCommands` 200, `responseMs` 30000, `episodeMs`
+300000, `maxOutputBytes` 16 MiB) are now defined once in `agent/runner.ts`, imported
+by the verifier, and enforced in the runner before any store row, subprocess, or
+model call. The verifier keeps its own independent re-validation. Existing import
+direction is preserved: `eval/` depends on `agent/`, never the reverse.

@@ -24,10 +24,10 @@ const HELP = `Grey Box — raw/adapter Gemini player, recorded execution and ver
 
 Options:
   --db <path>              SQLite store (default: runs/greybox.sqlite)
-  --max-commands <n>       Command-attempt limit (default: 200)
-  --response-ms <n>        Startup/response deadline (default: 5000)
-  --episode-ms <n>         Episode deadline (default: 300000)
-  --max-output-bytes <n>   Combined stdout/stderr cap (default: 1048576)
+  --max-commands <n>       Command-attempt limit (default/max: 200)
+  --response-ms <n>        Startup/response deadline (default: 5000, max: 30000)
+  --episode-ms <n>         Episode deadline (default/max: 300000)
+  --max-output-bytes <n>   Combined stdout/stderr cap (default: 1048576, max: 16777216)
 
 Play options:
   --model <id>            Gemini model (GEMINI_MODEL or gemini-2.5-flash)
@@ -62,6 +62,9 @@ verified episode prefix. It makes no model calls and writes nothing to either st
 play reads GEMINI_API_KEY or GOOGLE_API_KEY from the local environment/.env.
 verify runs without a model and checks the acknowledged prefix even if play
 stopped at a budget. It distinguishes candidate claims from oracle-only findings.
+
+Limits are capped at the values the independent verifier enforces, so play can
+never record an episode that verify would refuse.
 
 Commands are a JSON array of exact single-line strings. Unknown commands and
 empty lines are preserved. A complete script may end before winning the game.
