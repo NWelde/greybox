@@ -95,12 +95,12 @@ describe("createInitialState", () => {
     expect(stateA).toEqual(stateB);
   });
 
-  test("player, monster, and potion start on distinct floor tiles", () => {
+  test("player, monster, potion, and scored item start on distinct floor tiles", () => {
     const state = createInitialState(createRng(42), 8, 8);
     const positions = [
       state.player.position,
       state.monsters[0].position,
-      state.groundItems[0].position,
+      ...state.groundItems.map((item) => item.position),
     ];
 
     for (const p of positions) {
@@ -109,5 +109,16 @@ describe("createInitialState", () => {
 
     const unique = new Set(positions.map((p) => `${p.x},${p.y}`));
     expect(unique.size).toBe(positions.length);
+    expect(state.groundItems.map((item) => item.type).sort()).toEqual([
+      "potion",
+      "scoreItem",
+    ]);
+  });
+
+  test("adding the scored item preserves the seed 42 potion position", () => {
+    const state = createInitialState(createRng(42), 8, 8);
+    const potion = state.groundItems.find((item) => item.type === "potion");
+
+    expect(potion?.position).toEqual({ x: 6, y: 3 });
   });
 });

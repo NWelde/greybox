@@ -7,6 +7,25 @@ are grouped as Added, Fixed, or Docs.
 
 ### Added
 
+- Verified the current implementation with 121 passing tests, only the two
+  intentional planted-bug failures, and a successful Bun bundle check.
+- Added offline raw-player coverage for both planted findings, natural win,
+  bounded failures, provenance, and SQLite model-call persistence/migration.
+- Recorded two explicit Gemini 3.6 Flash development runs and independently
+  verified their prefixes; provider availability/quota prevented full live acceptance.
+- Added the raw Gemini player with bounded context, durable model-call records,
+  fixed-invariant candidates, and independent model-free finding verification.
+- Added explicit Gemini 3 thinking-level configuration after the live API rejected
+  2.5 Flash for this account; model switches are explicit, never automatic retries.
+- Added public prompt-delimited game framing, scored-item placement, streaming
+  UTF-8 input, and real CLI coverage for both preserved planted bugs.
+- Added `agent/main.ts` record/show/replay commands, byte-framed subprocess
+  transport, durable SQLite traces, source fingerprints, and model-free replay.
+- Added bounded subprocess cleanup, credential-free child environments,
+  uncertain-delivery recording, and independent-review regression tests.
+- Verified the first batch: 71 tests pass with only the two intentional bug
+  failures; final CLI recording and model-free replay match byte-for-byte.
+
 - `game-test/main.ts`: the entry point — parses `--seed`/`-s`/`--seed=N`
   from argv, constructs the RNG and initial state, adapts
   `process.stdin`/`console.log` to `ProtocolIO`, and calls
@@ -69,8 +88,27 @@ are grouped as Added, Fixed, or Docs.
   divergence, `next()` bounds, `range()` bounds and boundary values), all
   passing.
 
+### Fixed
+
+- Fixed independent verification of score candidates spanning omitted observations
+  and of acknowledged prefixes shorter than their planned scripts.
+- Preserve provider minimum retry delays: stop when the delay exceeds the bounded
+  retry allowance instead of retrying early.
+- Release the game's stdin iterator after terminal outcomes so a won game exits
+  even when its parent still holds stdin open.
+
 ### Docs
 
+- Documented batch 2 operation, explicit model availability override, verified
+  live prefixes, and the remaining quota-limited acceptance step in `agent.md`.
+- Expanded `CLAUDE.md` into a current continuation guide: architecture authority,
+  active milestone, changed files, test commands, live evidence, and pending work.
+- `agent.md`: accepted architecture, experiment controls, seven milestones, and
+  main-agent ownership with task-based subagent model selection.
+- Updated contributor and game docs for the accepted architecture, cumulative
+  scoring, and CLI commands; ignored local run artifacts and environment files.
+- Added `AGENTS.md` with repository structure, Bun commands, coding and
+  testing conventions, and contribution guidance.
 - `game-checklist.md`: per-piece build checklists (concrete
   functions/tests) for each of the seven pieces in `game-scope.md`.
 - `game-scope.md`: split the dungeon-crawler game itself (idea.md's build

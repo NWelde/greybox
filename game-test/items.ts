@@ -32,9 +32,9 @@ export function drop(state: GameState, itemId: string): GameState {
     { ...item, position: state.player.position },
   ];
 
-  // PLANTED BUG 2: dropping a scored item subtracts its value again
-  // instead of leaving score untouched, so a pickup-then-drop cycle nets
-  // -value, and repeating it sends score negative.
+  // PLANTED BUG 2: score is cumulative, but dropping a scored item removes
+  // its already-earned value instead of leaving the score untouched. A normal
+  // pickup-then-drop cycle therefore erases the points gained on pickup.
   const score =
     item.type === "scoreItem" ? state.score - item.value : state.score;
 

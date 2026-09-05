@@ -1,7 +1,8 @@
-- Prove the loop: raw output, then the agent reasons over it directly, then
-  the agent writes an adapter, then the adapter gets used, then the adapter
-  gets cheaper and more accurate over time.
+.env
+idea.md
 
-This is the main agent loop raw stdin and stdout output the agent reasons over it directly then 
-the agent codes an adapter(how does it run the adapter). then the adapter gets used, then the adapter gets 
-better. 
+# Local credentials and run artifacts
+.env.*
+!.env.example
+runs/
+node_modules/

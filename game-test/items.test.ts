@@ -64,8 +64,8 @@ describe("drinkPotion", () => {
 });
 
 describe("drop", () => {
-  // PLANTED BUG 2 (see items.ts: drop's `score` line subtracts the value
-  // again instead of leaving it alone). Same as above: this test is
+  // PLANTED BUG 2 (see items.ts: drop's `score` line reduces cumulative
+  // collected score instead of leaving it alone). Same as above: this test is
   // expected to fail, and that failure is the proof.
   test("PLANTED BUG 2: dropping a scored item does not change score", () => {
     const state = makeState([], {

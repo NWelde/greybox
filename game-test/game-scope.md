@@ -48,17 +48,19 @@ roll, death). Reads from the RNG module, writes to world state.
 Stays out of: item effects. A potion healing HP and a sword's attack roll are
 both "numbers changing," but combat is specifically the player-vs-monster
 exchange; treating it as one bucket with items invites exactly the kind of
-blurry code the overheal/negative-score bugs are supposed to be planted
+blurry code the overheal/cumulative-score bugs are supposed to be planted
 *into* deliberately, not by accident.
 
 ## 4. Items and inventory
 
 Owns: pickup, inventory list, and item effects: potions (heal), scored items
-(add to score on pickup, presumably subtract on drop). This is also where
+(add permanently to cumulative score on pickup; dropping should not change
+score). This is also where
 the two planted bugs from `idea.md` live:
 
 - drinking a potion at full HP overheals past the cap
-- dropping a scored item sends score negative
+- dropping a scored item wrongly removes its value from cumulative score,
+  so a normal pickup/drop cycle returns the score to its previous total
 
 Stays out of: combat resolution, map generation.
 
@@ -82,7 +84,10 @@ this piece just decides *when* to end and prints one final line).
 
 Owns: reading a line from stdin each turn, rendering world state to a
 terminal-style text block, the startup banner, and the "unknown command"
-response for unrecognized input.
+response for unrecognized input. A public `> ` line marks every point where
+the game is ready for input; with the CLI writer, responses are separated by
+the reserved `\n> \n` wire delimiter. A terminal outcome has no following
+prompt, and stdout EOF completes that final response.
 
 Stays out of: deciding what the legal verbs are as a fixed enum handed
 anywhere else in the codebase in an obvious way. `idea.md` is explicit that

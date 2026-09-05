@@ -48,6 +48,9 @@ on it.
 - [x] Define `Item` (type: potion | scoreItem, value) — in `world.ts`,
       alongside `GroundItem` (an `Item` placed on the map) and `score` on
       `GameState`
+- [x] Place one potion and one scored item on distinct floor tiles in the
+      initial state; adding the scored item does not change existing seeded
+      potion placement
 - [x] `pickUp(state, itemId)` — moves item from map cell to inventory
 - [x] `drop(state, itemId)` — moves item from inventory back to map cell
 - [x] `drinkPotion(state, itemId)` — heals player HP
@@ -56,11 +59,14 @@ on it.
       at 10). See `items.ts`, the `drinkPotion` heal line, and the
       `PLANTED BUG 1` test in `items.test.ts` (left failing on purpose).
 - [x] Scored items: pickup adds to score
-- [x] **Planted bug 2**: `drop` on a scored item subtracts its value again
-      — verified: the test asserting correct behavior fails (score goes to
-      0 instead of staying at 5). See `items.ts`, the `drop` score line,
-      and the `PLANTED BUG 2` test in `items.test.ts` (left failing on
-      purpose).
+- [x] Score is cumulative: collecting a scored item adds its value, and a
+      correct drop would leave that earned score unchanged
+- [x] **Planted bug 2**: `drop` on a scored item wrongly removes its value
+      from cumulative score — verified: the test asserting correct behavior
+      fails (score goes to 0 instead of staying at 5). A normal pickup/drop
+      cycle returns the score to its previous total. See `items.ts`, the
+      `drop` score line, and the `PLANTED BUG 2` test in `items.test.ts`
+      (left failing on purpose).
 - [x] Test: potion at partial HP heals correctly and clamps at max HP (this
       test should pass — the bug is specifically the full-HP case) — passes
 - [x] Test: pickup increases score by item value — passes
@@ -79,8 +85,7 @@ on it.
       that lands on the exit tile still counts as a loss
 - [x] On win/lose, produce the final message text to print —
       `outcomeMessage(outcome)`
-- [ ] Wire outcome check into the turn loop (checked after every action) —
-      deferred to piece 6, since there's no turn loop yet to wire it into
+- [x] Wire outcome check into the turn loop (checked after every action)
 - [x] Test: player HP at 0 after damage resolves to `"lose"`
 - [x] Test: reaching the win condition resolves to `"win"`
 - [x] Test: mid-game state resolves to `"playing"`
@@ -102,6 +107,9 @@ on it.
       — `runProtocolLoop`, also picks up piece 5's deferred outcome-check
       wiring (checks `checkOutcome` after every action, prints the outcome
       message and stops on win/lose)
+- [x] Emit a public `> ` prompt line immediately before each input read;
+      `console.log` turns it into the reserved `\n> \n` wire delimiter
+- [x] End a terminal outcome at stdout EOF without emitting another prompt
 - [x] Manually playtest: sit down without documentation and see if you (as a
       cold reader) can figure out the verbs from the banner + errors alone
       — ran a scripted smoke test (garbage input, move, take, drink) end to
@@ -118,6 +126,8 @@ on it.
 - [x] Parse the seed flag from argv — `--seed N`, `-s N`, or `--seed=N`;
       falls back to `Date.now()` if none given
 - [x] Construct RNG, initial world state, wire the turn loop from piece 6
+- [x] Decode stdin incrementally as UTF-8 so a character split across stream
+      chunks is reconstructed before command parsing
 - [x] Confirm this file has no game logic in it — only argument parsing and
       wiring — placement/generation logic lives in `createInitialState`
       (`world.ts`), which `main.ts` just calls; `main.ts` itself only
@@ -129,6 +139,6 @@ on it.
       identical
 
 (`createInitialState`'s entity placement is logic, not wiring, so it's
-tested like the other pieces: 2 tests in `world.test.ts` — same seed
-produces an identical initial state twice, and player/monster/potion land
-on distinct floor tiles.)
+tested like the other pieces: the same seed produces an identical initial
+state, all entities/items land on distinct floor tiles, and adding the scored
+item preserves seed 42's established potion position.)

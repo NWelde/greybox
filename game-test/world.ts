@@ -106,6 +106,11 @@ export function createInitialState(
     playerPosition,
     monsterPosition,
   ]);
+  const scoreItemPosition = randomFloorPosition(rng, map, [
+    playerPosition,
+    monsterPosition,
+    potionPosition,
+  ]);
 
   return {
     map,
@@ -113,6 +118,12 @@ export function createInitialState(
     monsters: [{ position: monsterPosition, hp: 5, maxHp: 5 }],
     groundItems: [
       { id: "potion-1", type: "potion", value: 3, position: potionPosition },
+      {
+        id: "coin-1",
+        type: "scoreItem",
+        value: 5,
+        position: scoreItemPosition,
+      },
     ],
     score: 0,
   };

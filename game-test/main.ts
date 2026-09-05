@@ -21,25 +21,35 @@ function parseSeed(argv: string[]): number {
   return Date.now();
 }
 
+export async function* readLines(
+  input: AsyncIterable<Uint8Array | string>,
+): AsyncGenerator<string> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  for await (const chunk of input) {
+    buffer +=
+      typeof chunk === "string"
+        ? chunk
+        : decoder.decode(chunk, { stream: true });
+
+    let newlineIndex: number;
+    while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+      yield buffer.slice(0, newlineIndex);
+      buffer = buffer.slice(newlineIndex + 1);
+    }
+  }
+
+  buffer += decoder.decode();
+  if (buffer.length > 0) yield buffer;
+}
+
 async function main() {
   const seed = parseSeed(process.argv.slice(2));
   const rng = createRng(seed);
   const state = createInitialState(rng, MAP_WIDTH, MAP_HEIGHT);
 
-  async function* readLines() {
-    let buffer = "";
-    for await (const chunk of process.stdin) {
-      buffer += chunk.toString();
-      let newlineIndex: number;
-      while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
-        yield buffer.slice(0, newlineIndex);
-        buffer = buffer.slice(newlineIndex + 1);
-      }
-    }
-    if (buffer.length > 0) yield buffer;
-  }
-
-  const lines = readLines();
+  const lines = readLines(process.stdin);
 
   const io: ProtocolIO = {
     write: (text) => console.log(text),
@@ -49,7 +59,15 @@ async function main() {
     },
   };
 
-  await runProtocolLoop(state, rng, io);
+  try {
+    await runProtocolLoop(state, rng, io);
+  } finally {
+    // A win can occur while the parent keeps stdin open. Release the paused
+    // iterator so the completed game exits without waiting for another command.
+    await lines.return(undefined);
+  }
 }
 
-main();
+if (import.meta.main) {
+  await main();
+}

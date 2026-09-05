@@ -19,6 +19,7 @@ export const BANNER =
   "Your torch is dying. Whatever you're going to do, do it now.";
 
 export const UNKNOWN_COMMAND = "I don't understand that.";
+export const PROMPT = "> ";
 
 export type Action =
   | { kind: "move"; direction: Direction }
@@ -194,6 +195,7 @@ export async function runProtocolLoop(
   let current = state;
 
   while (true) {
+    io.write(PROMPT);
     const line = await io.readLine();
     if (line === null) return current;
 
