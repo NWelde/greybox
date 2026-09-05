@@ -13,33 +13,44 @@ step changes so Claude can continue without the original chat. Use this existing
 
 ## Current handoff — 2026-09-05
 
-Batch 1 (game contract and recorded execution/replay) is implemented and verified.
-Batch 2 (milestones 3–4: raw Gemini player and independently verified findings)
-is implemented and offline-tested; full live acceptance remains blocked by
-provider availability/quota, not missing agent-loop implementation.
-Do not begin adapters/repair/comparison (milestones 5–7) yet.
+Batch 1 (game contract, recorded execution/replay) and batch 2 (raw player,
+verified findings) are implemented and offline-verified. Milestone 5 (first
+adapter, including withheld evaluation) is now complete offline; milestone 6
+(bounded repair) is implemented and tested. Full live acceptance remains blocked
+by provider availability/quota, not by missing implementation. Comparison
+benchmarks (milestone 7) remain out of scope until batch 2 live acceptance ends.
 
-Current changes:
+Adapter work implemented: shared `model-session.ts` accounting, `adapters.ts`
+synthesis/repair lifecycle, public-only `adapter-prompts.ts`, schema 4
+attempts/events/call purposes, opt-in `--adapter-mode frozen|repair` (raw stays
+the default), Bubblewrap isolation in `adapter-host.ts`/`adapter-worker.ts`, and
+recorded request pacing. `bwrap` is installed at `/usr/bin/bwrap`, so the host
+tests exercise real isolation rather than a mock.
 
-- `agent/contracts.ts`, `prompts.ts`, `invariants.ts`, `player.ts`: typed raw
-  decisions, field provenance, bounded context/tokens, fixed candidate predicates.
-- `agent/gemini.ts`, `config.ts`: direct structured Gemini requests, header-only
-  credentials, sanitized responses, bounded reads, cancellation and usage mapping.
-- `agent/store.ts`: SQLite schema 3 adds calls, interpretations, invariant results,
-  and verification reports. `runner.ts` shares scripted/raw process lifecycle.
-- `agent/main.ts`: `play`, `verify`, `record`, `show`, `replay` commands.
-- `eval/verify.ts`: model-free subprocess replay plus a separate seeded-state
-  oracle; confirms exact candidate evidence and labels oracle-only discoveries.
+Completed this session:
 
-Final validation: `bun --no-env-file test agent eval game-test` reports **121
-passing tests and only the two intentional planted-bug failures** (123 tests,
-15 files). The focused player suite passes all 15 tests. Bun's in-memory bundle
-check and `git diff --check` passed. No TypeScript type-checker is configured.
-Preserve
-the two intentionally failing `PLANTED BUG` tests: overheal and decreasing
+- `eval/adapter.test.ts`: 10 tests over the withheld evaluator — correct scoring,
+  incorrect vs. unknown fields, provenance mismatch on error frames,
+  nondeterminism, adapter failure, cancellation, timeout bounds, verification
+  refusal, and a real Bubblewrap end-to-end case. No bug found in `eval/adapter.ts`.
+- `agent/main.ts`: read-only `evaluate` command exposing that evaluator. See
+  `agent.md` for its shape and the `withheld` flag semantics.
+- An independent contract audit of the adapter subsystem; its four findings are
+  fixed and recorded in `agent.md` under "Milestone 5 completion and adapter audit",
+  along with two accepted known limitations.
+
+Validation: `bun --no-env-file test agent eval game-test` reports **159 passing
+tests and only the two intentional planted-bug failures** (161 tests, 18 files).
+`git diff --check` is clean. No TypeScript type-checker is configured. Preserve
+the two intentionally failing `PLANTED BUG` tests — overheal and decreasing
 cumulative score. They are the experiment target, not regressions to fix.
 
-Live evidence in ignored `runs/greybox.sqlite`:
+Offline adapter evidence (mocked model, real Bubblewrap): an adapter synthesized
+and accepted during a seed-42 episode scored 4/4 observations and 24/24 fields on
+a withheld seed-7 episode, verified independently before and after. This proves
+the evaluation path only. It is not a live result and not a benchmark.
+
+Live evidence in ignored `runs/greybox.sqlite` (unchanged this session):
 
 - `24db1520-c6cb-40c3-9aea-7e2a39c3b620`: sandbox network failure, no commands.
 - `2dc008c0-71c9-430a-bb27-b752ec8b89d9`: Google rejected 2.5 Flash for this
@@ -55,30 +66,31 @@ Live evidence in ignored `runs/greybox.sqlite`:
   through observation 6; outcome still playing, no findings. No more live calls
   were made after this quota failure.
 
-Active work / next steps:
+Next steps:
 
-1. Verifier fixes are integrated and tested (12 tests): valid score candidates
-   across omitted observations and bounded prefixes with longer planned scripts.
-   Gemini thinking-level and SQLite persistence/migration tests also pass.
-   Provider retry delays are never shortened; unknown-usage calls are not retried.
-2. Full live acceptance is still pending. Run a fresh bounded episode when
-   provider availability/quota permits; account for the observed five-request
-   free-tier limit (request pacing may need an explicit recorded setting). Then
-   `verify` and (only for a complete trace) `replay`. Do not automatically retry
-   unknown-usage calls or switch models inside an episode.
-3. Do not claim a live-discovered bug or completed game: current live evidence
-   proves bounded model-directed execution and reproducible prefixes only.
-   Mocked-model integration tests independently confirm both planted bugs and a
-   natural win. Finish the batch 2 live acceptance before starting batch 3.
+1. Live acceptance is the only thing standing between here and batch 3. Run one
+   bounded episode when quota permits, accounting for the observed five-request
+   free-tier limit — `--model-interval-ms 13000` is the development pacing
+   choice. Then `verify`, and `replay` only if the trace is complete. Never
+   automatically retry an unknown-usage call, switch models inside an episode,
+   or replay a quota-failed episode.
+2. No live adapter-generation call has been made. A `frozen` or `repair` episode
+   costs extra authoring calls on top of policy calls; budget for that against
+   the same quota before attempting one.
+3. Do not claim a live-discovered bug, a completed live game, adaptation, or cost
+   savings. Current live evidence proves bounded model-directed execution and
+   reproducible prefixes only. Mocked-model integration tests independently
+   confirm both planted bugs and a natural win.
 
-The working tree contains both earlier batch work and current changes, all
-uncommitted. Preserve them and user-owned `.gitignore`/`.env` changes. Never reset
-or clean the tree to establish a baseline. Sol workers implemented the Gemini
-client, verifier, and persistence tests. Astra identified two verifier issues;
-the main agent integrated/tested the fixes. Follow-up subagent review hit an
-account usage limit; it did not produce a clean full-review sign-off. The main
-agent owns integration and acceptance. All delegated workers are closed; there
-is no active background implementation or live model run to wait for.
+The earlier implementation was committed and pushed to `origin/main` as
+`fc157bd` (`Add recorded agent execution and verified findings`). The adapter
+work is not yet in a commit. Preserve user-owned `.env` changes. Never reset or
+clean the tree to establish a baseline. Sol workers implemented the Gemini
+client, verifier, and persistence tests. Astra identified two verifier issues and
+built the adapter lifecycle. This session's subagents wrote the withheld-evaluator
+tests, wired `evaluate`, audited the adapter subsystem, and applied the audit
+fixes; the main agent owns integration and acceptance. All delegated workers are
+closed; there is no active background implementation or live model run to wait for.
 
 ## Commands and credentials
 
@@ -88,6 +100,7 @@ bun --no-env-file test agent eval game-test
 bun run agent/main.ts play --seed 42 --model gemini-3.6-flash --thinking-level low --max-commands 20 --token-budget 100000 --episode-ms 240000
 bun --no-env-file run agent/main.ts verify --episode <id>
 bun --no-env-file run agent/main.ts replay --episode <complete-id>
+bun --no-env-file run agent/main.ts evaluate --episode <withheld-id> --adapter-episode <source-id>
 ```
 
 Bun runs TypeScript directly; no package installation is required. `.env` now

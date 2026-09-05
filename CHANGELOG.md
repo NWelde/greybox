@@ -7,7 +7,14 @@ are grouped as Added, Fixed, or Docs.
 
 ### Added
 
-- Verified the current implementation with 121 passing tests, only the two
+- Added an `evaluate` command that scores an accepted adapter against a separate
+  withheld, independently verified episode prefix, making no model calls.
+- Added `eval/adapter.test.ts`: 10 tests covering correct scoring, incorrect and
+  unknown fields, provenance mismatches, nondeterminism, adapter failures,
+  cancellation, timeout bounds, verification refusal, and real Bubblewrap execution.
+- Started opt-in adapter synthesis and hard-failure repair, with isolated
+  execution, immutable candidate records, and shared model-call accounting.
+- Verified the current implementation with 157 passing tests, only the two
   intentional planted-bug failures, and a successful Bun bundle check.
 - Added offline raw-player coverage for both planted findings, natural win,
   bounded failures, provenance, and SQLite model-call persistence/migration.
@@ -25,6 +32,15 @@ are grouped as Added, Fixed, or Docs.
   uncertain-delivery recording, and independent-review regression tests.
 - Verified the first batch: 71 tests pass with only the two intentional bug
   failures; final CLI recording and model-free replay match byte-for-byte.
+
+### Fixed
+
+- Framed the isolated parser's reply with a per-invocation sentinel; stray adapter
+  stdout no longer corrupts the reply or misclassifies a correct parser as broken.
+- Retained the failing observation in the repair corpus instead of dropping it when
+  oversized, and stopped discarding an unhandled hard-failure incident in `maintain`.
+- Used `--ro-bind-try` for `/lib64` and awaited the worker stdin write so isolation
+  works without `/lib64` and a large payload cannot arrive truncated.
 
 - `game-test/main.ts`: the entry point — parses `--seed`/`-s`/`--seed=N`
   from argv, constructs the RNG and initial state, adapts
@@ -90,6 +106,8 @@ are grouped as Added, Fixed, or Docs.
 
 ### Fixed
 
+- Fixed a policy-deadline race by cancelling and settling active decision work
+  before the runner finalizes model-call and adapter-attempt records.
 - Fixed independent verification of score candidates spanning omitted observations
   and of acknowledged prefixes shorter than their planned scripts.
 - Preserve provider minimum retry delays: stop when the delay exceeds the bounded

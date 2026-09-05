@@ -84,8 +84,24 @@ export async function runEpisode(options: SessionOptions & {
       if (index >= limits.maxCommands) throw new RunError("turn_limit", "Command-attempt limit reached");
       remaining();
       if (signal?.aborted) throw new RunError("cancelled", "Run cancelled");
-      const command = await within(options.decide({ episode: id, observation: seq - 1, frame,
-        history, remainingMs: () => Math.max(0, deadline - performance.now()), signal }), deadline - performance.now(), signal);
+      const decisionController = new AbortController();
+      const cancelDecision = () => decisionController.abort();
+      signal?.addEventListener("abort", cancelDecision, { once: true });
+      if (signal?.aborted) cancelDecision();
+      const pendingDecision = options.decide({ episode: id, observation: seq - 1, frame,
+        history, remainingMs: () => Math.max(0, deadline - performance.now()), signal: decisionController.signal });
+      let command: string | null;
+      try {
+        command = await within(pendingDecision, deadline - performance.now(), signal);
+      } catch (error) {
+        cancelDecision();
+        // Let the cooperative policy settle its call/adapter records before episode finalization.
+        try { await within(pendingDecision.catch(() => {}), 1000); } catch { /* Uncooperative policy stays incomplete. */ }
+        throw error;
+      } finally {
+        cancelDecision();
+        signal?.removeEventListener("abort", cancelDecision);
+      }
       if (command === null) break;
       if (typeof command !== "string" || /[\r\n\0]/.test(command) || Buffer.byteLength(command) > 4096) {
         throw new RunError("invalid_command", "Policy returned an invalid command line");

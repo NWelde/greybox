@@ -34,6 +34,8 @@ export const UNKNOWN_USAGE: Usage = {
   cachedTokens: null, totalTokens: null,
 };
 export interface ModelRequest {
+  purpose?: "raw_decision" | "structured_decision" | "adapter_synthesis" | "adapter_repair";
+  adapterAttempt?: string;
   system: string;
   input: string;
   schema: Record<string, unknown>;

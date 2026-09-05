@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test";
 import { Database } from "bun:sqlite";
+import { createHash } from "node:crypto";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -84,6 +85,25 @@ const REQUEST: ModelRequest = {
   settings: CONFIG.player!.settings,
 };
 
+const ADAPTER_CONFIG: RunConfig = {
+  ...CONFIG,
+  condition: "repair",
+  player: {
+    ...CONFIG.player!,
+    structuredPromptHash: "structured-prompt-hash",
+    authorPromptHash: "author-prompt-hash",
+    adapters: {
+      mode: "repair",
+      synthesizeAfter: 10,
+      timeoutMs: 1_000,
+      maxRepairAttempts: 2,
+      maxExamples: 12,
+      maxExampleBytes: 32_768,
+      generationMaxOutputTokens: 8_192,
+    },
+  },
+};
+
 const VIEW: ObservedView = {
   kind: "state",
   hp: { value: 13, source: "observed" },
@@ -103,7 +123,7 @@ const INVARIANT: InvariantResult = {
   evidence: { hp: 13, maxHp: 10 },
 };
 
-describe("schema 3 persistence", () => {
+describe("schema 4 persistence", () => {
   test("model calls, interpretations, invariants, and verification survive a SQLite reopen", async () => {
     const path = await temporaryDatabase();
     const store = openStore(path);
@@ -185,6 +205,7 @@ describe("schema 3 persistence", () => {
       id: callId,
       observation: 0,
       attempt: 0,
+      purpose: "raw_decision",
       request: REQUEST,
       status: "succeeded",
       response: providerResponse,
@@ -196,6 +217,8 @@ describe("schema 3 persistence", () => {
     expect(restored.interpretations).toEqual([{ observation: 0, view: VIEW }]);
     expect(restored.invariants).toEqual([INVARIANT]);
     expect(restored.verifications).toEqual([report]);
+    expect(restored.adapters).toEqual([]);
+    expect(restored.adapterEvents).toEqual([]);
   });
 
   test("finishing an episode makes an in-flight model call indeterminate", async () => {
@@ -220,6 +243,7 @@ describe("schema 3 persistence", () => {
       id: callId,
       observation: 3,
       attempt: 1,
+      purpose: "raw_decision",
       request: REQUEST,
       status: "indeterminate",
       response: null,
@@ -228,6 +252,162 @@ describe("schema 3 persistence", () => {
       latencyMs: null,
       error: null,
     }]);
+  });
+
+  test("persists immutable adapter attempts, lineage, ordered events, and call purposes", async () => {
+    const path = await temporaryDatabase();
+    const store = openStore(path);
+    const episode = store.start(ADAPTER_CONFIG);
+    const authorRequest = {
+      ...REQUEST,
+      purpose: "adapter_synthesis",
+    } satisfies ModelRequest;
+    const callId = store.startCall(episode, 10, 0, authorRequest);
+    const source = "export function parse(raw: string) { return raw; }\n";
+    const sourceHash = createHash("sha256").update(source).digest("hex");
+
+    const first = store.startAdapter(episode, 10, "synthesis", null, 0);
+    store.setAdapterSource(first, source, callId);
+    expect(() => store.setAdapterSource(first, `${source}// changed`, callId)).toThrow(
+      "Adapter source cannot be set",
+    );
+    store.finishAdapter(first, {
+      status: "accepted",
+      validation: { examples: 10, deterministic: true },
+      error: null,
+      activationObservation: 11,
+    });
+    expect(() => store.finishAdapter(first, {
+      status: "rejected",
+      validation: null,
+      error: "late overwrite",
+      activationObservation: null,
+    })).toThrow("Adapter is not pending");
+
+    const repair = store.startAdapter(episode, 14, "repair", first, 2);
+    store.finishAdapter(repair, {
+      status: "rejected",
+      validation: { stage: "authoring" },
+      error: "model returned no source",
+      activationObservation: null,
+    });
+    const pending = store.startAdapter(episode, 15, "repair", first, 3);
+
+    store.adapterEvent(episode, {
+      observation: 11,
+      adapter: first,
+      kind: "activated",
+      reason: null,
+    });
+    store.adapterEvent(episode, {
+      observation: 11,
+      adapter: first,
+      kind: "hit",
+      reason: null,
+    });
+    store.adapterEvent(episode, {
+      observation: 14,
+      adapter: first,
+      kind: "disabled",
+      reason: "timeout",
+    });
+    store.adapterEvent(episode, {
+      observation: 14,
+      adapter: null,
+      kind: "fallback",
+      reason: "adapter_timeout",
+    });
+    closeStore(store);
+
+    const readonlyStore = openStore(path, true);
+    const beforeFinish = readonlyStore.get(episode);
+    expect(beforeFinish.config).toEqual(ADAPTER_CONFIG);
+    expect(beforeFinish.calls).toEqual([{
+      id: callId,
+      observation: 10,
+      attempt: 0,
+      purpose: "adapter_synthesis",
+      request: authorRequest,
+      status: "in_flight",
+      response: null,
+      usage: UNKNOWN_USAGE,
+      modelVersion: null,
+      latencyMs: null,
+      error: null,
+    }]);
+    expect(beforeFinish.adapters).toEqual([
+      {
+        id: first,
+        episode,
+        parent: null,
+        cause: "synthesis",
+        observation: 10,
+        attempt: 0,
+        source,
+        sourceHash,
+        callId,
+        status: "accepted",
+        validation: { examples: 10, deterministic: true },
+        error: null,
+        activationObservation: 11,
+      },
+      {
+        id: repair,
+        episode,
+        parent: first,
+        cause: "repair",
+        observation: 14,
+        attempt: 2,
+        source: null,
+        sourceHash: null,
+        callId: null,
+        status: "rejected",
+        validation: { stage: "authoring" },
+        error: "model returned no source",
+        activationObservation: null,
+      },
+      {
+        id: pending,
+        episode,
+        parent: first,
+        cause: "repair",
+        observation: 15,
+        attempt: 3,
+        source: null,
+        sourceHash: null,
+        callId: null,
+        status: "pending",
+        validation: null,
+        error: null,
+        activationObservation: null,
+      },
+    ]);
+    expect(beforeFinish.adapterEvents).toEqual([
+      { observation: 11, adapter: first, kind: "activated", reason: null },
+      { observation: 11, adapter: first, kind: "hit", reason: null },
+      { observation: 14, adapter: first, kind: "disabled", reason: "timeout" },
+      { observation: 14, adapter: null, kind: "fallback", reason: "adapter_timeout" },
+    ]);
+    closeStore(readonlyStore);
+
+    const finishing = openStore(path);
+    finishing.finish(episode, {
+      status: "incomplete",
+      stopReason: "cancelled",
+      error: null,
+      exitCode: null,
+      forced: true,
+      stdout: Buffer.alloc(0),
+      stderr: Buffer.alloc(0),
+    });
+    closeStore(finishing);
+
+    const afterFinish = openStore(path, true).get(episode);
+    expect(afterFinish.adapters.map(adapter => adapter.status)).toEqual([
+      "accepted",
+      "rejected",
+      "indeterminate",
+    ]);
   });
 });
 
@@ -286,7 +466,7 @@ function createV2Fixture(path: string): V2Fixture {
   return fixture;
 }
 
-function expectV2EpisodePreserved(store: Store, fixture: V2Fixture) {
+function expectV2EpisodePreserved(store: Store, fixture: V2Fixture, expectNoCalls = true) {
   const episode = store.get(fixture.id);
   expect(episode.config).toEqual(fixture.config);
   expect(episode.status).toBe("complete");
@@ -304,10 +484,12 @@ function expectV2EpisodePreserved(store: Store, fixture: V2Fixture) {
     status: "complete",
   }]);
   expect(Buffer.from(episode.commands[0].text)).toEqual(Buffer.from(fixture.command));
-  expect(episode.calls).toEqual([]);
+  if (expectNoCalls) expect(episode.calls).toEqual([]);
   expect(episode.interpretations).toEqual([]);
   expect(episode.invariants).toEqual([]);
   expect(episode.verifications).toEqual([]);
+  expect(episode.adapters).toEqual([]);
+  expect(episode.adapterEvents).toEqual([]);
 }
 
 describe("schema 2 compatibility", () => {
@@ -328,7 +510,7 @@ describe("schema 2 compatibility", () => {
     inspection.close();
   });
 
-  test("writable mode migrates schema 2 to 3 without changing episode or command bytes", async () => {
+  test("writable mode migrates schema 2 to 4 without changing episode or command bytes", async () => {
     const path = await temporaryDatabase();
     const fixture = createV2Fixture(path);
     const migrating = openStore(path);
@@ -341,15 +523,155 @@ describe("schema 2 compatibility", () => {
     const inspection = new Database(path, { readonly: true, strict: true });
     const version = inspection.query("PRAGMA user_version").get() as { user_version: number };
     const tables = inspection.query(`SELECT name FROM sqlite_master
-      WHERE type = 'table' AND name IN ('model_calls', 'interpretations', 'invariant_results', 'verifications')
+      WHERE type = 'table' AND name IN (
+        'model_calls', 'interpretations', 'invariant_results', 'verifications',
+        'adapters', 'adapter_events'
+      )
       ORDER BY name`).all() as { name: string }[];
-    expect(version.user_version).toBe(3);
+    const purpose = inspection.query("PRAGMA table_info(model_calls)").all()
+      .find((column: any) => column.name === "purpose") as any;
+    expect(version.user_version).toBe(4);
     expect(tables.map(row => row.name)).toEqual([
+      "adapter_events",
+      "adapters",
       "interpretations",
       "invariant_results",
       "model_calls",
       "verifications",
     ]);
+    expect(purpose.notnull).toBe(1);
+    expect(purpose.dflt_value).toBe("'raw_decision'");
+    inspection.close();
+  });
+});
+
+interface V3Fixture {
+  episode: V2Fixture;
+  callId: number;
+  requestText: string;
+  responseText: string;
+  usageText: string;
+}
+
+function createV3Fixture(path: string): V3Fixture {
+  const episode = createV2Fixture(path);
+  const db = new Database(path, { strict: true });
+  db.run(`
+    PRAGMA foreign_keys = ON;
+    CREATE TABLE model_calls (
+      id INTEGER PRIMARY KEY, episode_id TEXT NOT NULL REFERENCES episodes(id),
+      observation INTEGER NOT NULL, attempt INTEGER NOT NULL, request TEXT NOT NULL,
+      status TEXT NOT NULL, response TEXT, usage TEXT NOT NULL, model_version TEXT,
+      latency_ms INTEGER, error TEXT, started_at TEXT NOT NULL, finished_at TEXT
+    );
+    CREATE TABLE interpretations (
+      episode_id TEXT NOT NULL REFERENCES episodes(id), observation INTEGER NOT NULL,
+      view TEXT NOT NULL, PRIMARY KEY(episode_id, observation)
+    );
+    CREATE TABLE invariant_results (
+      episode_id TEXT NOT NULL REFERENCES episodes(id), observation INTEGER NOT NULL,
+      invariant TEXT NOT NULL, result TEXT NOT NULL,
+      PRIMARY KEY(episode_id, observation, invariant)
+    );
+    CREATE TABLE verifications (
+      id INTEGER PRIMARY KEY, episode_id TEXT NOT NULL REFERENCES episodes(id),
+      report TEXT NOT NULL, created_at TEXT NOT NULL
+    );
+    PRAGMA user_version = 3;
+  `);
+  const requestText = JSON.stringify(REQUEST);
+  const responseText = JSON.stringify({ text: "legacy-response", bytes: "\u0000ÿ" });
+  const usageText = JSON.stringify({
+    promptTokens: 9,
+    outputTokens: 4,
+    thinkingTokens: null,
+    cachedTokens: 1,
+    totalTokens: 13,
+  });
+  const inserted = db.query(`INSERT INTO model_calls
+    (episode_id, observation, attempt, request, status, response, usage, model_version,
+      latency_ms, error, started_at, finished_at)
+    VALUES (?, 0, 1, ?, 'succeeded', ?, ?, 'legacy-model', 37, NULL, ?, ?)`)
+    .run(
+      episode.id,
+      requestText,
+      responseText,
+      usageText,
+      "2026-09-05T00:00:00.100Z",
+      "2026-09-05T00:00:00.137Z",
+    );
+  const callId = Number(inserted.lastInsertRowid);
+  db.close();
+  return { episode, callId, requestText, responseText, usageText };
+}
+
+function expectV3CallPreserved(store: Store, fixture: V3Fixture) {
+  const episode = store.get(fixture.episode.id);
+  expect(episode.calls).toEqual([{
+    id: fixture.callId,
+    observation: 0,
+    attempt: 1,
+    purpose: "raw_decision",
+    request: REQUEST,
+    status: "succeeded",
+    response: { text: "legacy-response", bytes: "\u0000ÿ" },
+    usage: {
+      promptTokens: 9,
+      outputTokens: 4,
+      thinkingTokens: null,
+      cachedTokens: 1,
+      totalTokens: 13,
+    },
+    modelVersion: "legacy-model",
+    latencyMs: 37,
+    error: null,
+  }]);
+  expect(episode.adapters).toEqual([]);
+  expect(episode.adapterEvents).toEqual([]);
+}
+
+describe("schema 3 compatibility", () => {
+  test("readonly mode loads calls with the legacy purpose without modifying the schema", async () => {
+    const path = await temporaryDatabase();
+    const fixture = createV3Fixture(path);
+    const store = openStore(path, true);
+    expectV2EpisodePreserved(store, fixture.episode, false);
+    expectV3CallPreserved(store, fixture);
+    closeStore(store);
+
+    const inspection = new Database(path, { readonly: true, strict: true });
+    const version = inspection.query("PRAGMA user_version").get() as { user_version: number };
+    const purposeColumns = inspection.query("PRAGMA table_info(model_calls)").all()
+      .filter((column: any) => column.name === "purpose");
+    expect(version.user_version).toBe(3);
+    expect(purposeColumns).toEqual([]);
+    inspection.close();
+  });
+
+  test("writable mode migrates schema 3 to 4 without changing call serialization or trace bytes", async () => {
+    const path = await temporaryDatabase();
+    const fixture = createV3Fixture(path);
+    const migrating = openStore(path);
+    closeStore(migrating);
+
+    const reopened = openStore(path, true);
+    expectV2EpisodePreserved(reopened, fixture.episode, false);
+    expectV3CallPreserved(reopened, fixture);
+    closeStore(reopened);
+
+    const inspection = new Database(path, { readonly: true, strict: true });
+    const version = inspection.query("PRAGMA user_version").get() as { user_version: number };
+    const call = inspection.query(`SELECT request, response, usage, purpose
+      FROM model_calls WHERE id = ?`).get(fixture.callId) as {
+        request: string; response: string; usage: string; purpose: string;
+      };
+    expect(version.user_version).toBe(4);
+    expect(call).toEqual({
+      request: fixture.requestText,
+      response: fixture.responseText,
+      usage: fixture.usageText,
+      purpose: "raw_decision",
+    });
     inspection.close();
   });
 });

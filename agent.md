@@ -374,3 +374,103 @@ savings from these runs. Before batch 3, finish a bounded live acceptance run
 within available provider quota, verify its evidence, and replay it if complete.
 Keep development seed 42 separate from later held-out evaluation seeds. Consult
 `CLAUDE.md` for the latest test results and remaining work.
+
+## Adapter implementation contract — milestones 5–6
+
+User direction on 2026-09-05 authorizes implementing generation and repair now,
+despite the recorded batch 2 live-quota limitation. Do not erase that limitation
+or interpret this work as completion of the comparison benchmark (milestone 7).
+
+- Export a synchronous `parse(raw: string, previous: ObservedView | null)`
+  function returning the existing observable-view shape. It selects no action.
+  Source is TypeScript, at most 32 KiB, with no imports or external dependencies.
+- Use Linux Bubblewrap isolation with a minimal read-only runtime/worker mount,
+  separate PID/network namespaces, empty environment, and no repository/home/run
+  store mounts. Bound execution and output, kill the namespace on timeout, and
+  fail closed if isolation is unavailable. This is local prototype containment,
+  not a claim of hardened multi-tenant resource/security isolation. No unisolated
+  fallback. See [Bubblewrap](https://github.com/containers/bubblewrap).
+- Opt-in play conditions are `frozen` and `repair`; raw remains the default.
+  Synthesize once after ten acknowledged exchanges (configurable and recorded).
+  Retain a bounded corpus of public observations, their prior views, and the
+  interpretations already used by the player. Authoring sees that corpus only,
+  plus the parser interface, parent source and a bounded hard-failure reason.
+  Corpus labels are fallible model evidence, not privileged ground truth.
+- Check every candidate twice on each retained example for schema, determinism,
+  and exact agreement with those prior interpretations before activation.
+  Persist every attempt and immutable source/hash/parent/result. Activation
+  begins at the next observation, never retrospectively repairs hit-rate history.
+- On a hard parser failure, use raw fallback for the current decision. Disable
+  the failed version. Repair mode permits at most two new candidates for that
+  incident, after adding the fallback example to regression evidence. Frozen
+  mode never repairs. Schema-valid semantic mistakes trigger no online repair.
+- One policy call per normal turn remains mandatory. On a hit, the policy gets
+  the structured view, its previous policy-visible interactions and memory, not
+  the current raw display. Synthesis/repair calls share the same token/deadline
+  budget and record explicit purposes; acquisition cost is never hidden.
+- SQLite schema 4 adds adapter attempts/events and call purpose while preserving
+  schema 2/3 recordings. Default generation output allowance is 8192 tokens and
+  each retained-corpus byte/sample cap is recorded. Evaluation uses separate
+  withheld transcripts after play; oracle outputs never enter repair prompts.
+
+Operational detail from the observed free-tier quota: `--model-interval-ms` is
+an explicit, recorded minimum request-start interval shared by policy, generation,
+repair, and retries. It defaults to zero and consumes episode time, not tokens.
+Using 13000 ms is a development pacing choice, not a guarantee of provider quota
+availability. Never automatically replay a quota-failed episode. A decision's
+deadline cancellation settles cooperative model/adapter work before finalizing
+its records (up to one extra second for cleanup).
+
+## Milestone 5 completion and adapter audit (2026-09-05)
+
+Withheld evaluation is now reachable and demonstrated. `eval/adapter.ts` gained
+`eval/adapter.test.ts` (10 tests) and a read-only `evaluate` CLI command:
+
+```sh
+bun --no-env-file run agent/main.ts evaluate --episode <withheld-id> \
+  --adapter-episode <source-id> [--adapter <adapter-id>] [--adapter-db <path>]
+```
+
+Adapters are stored per episode and have no global identifier lookup, so a
+candidate is addressed by naming both episodes. When the two ids match the report
+carries `withheld: false`, so a self-evaluation can never be read as held-out
+evidence. The command opens both stores read-only, makes no model calls, and
+writes nothing. Demonstrated offline with a mocked model and the real Bubblewrap
+executor: an adapter synthesized and accepted during a seed-42 episode scored
+4/4 observations and 24/24 fields on a withheld seed-7 episode, independently
+verified before and after. This is offline evidence of the evaluation path, not
+a live result and not a comparison benchmark.
+
+An independent read-only audit of the adapter subsystem against the contract
+above confirmed isolation, authoring-prompt information limits, twice-per-example
+validation before activation, repair bounds, shared token accounting, write-once
+persistence, and deadline settling. Four findings were fixed:
+
+- The worker's frozen `process.stdout.write` was bypassable through `console.log`
+  and `Bun.write(Bun.stdout, ...)`. Stray output corrupted the single JSON reply,
+  so a correct parser carrying a leftover debug print was misclassified as a hard
+  failure and consumed the repair budget; an adapter that wrote its own response
+  object and exited could also have supplied that reply. The response is now
+  framed with a fresh per-invocation sentinel that the adapter never receives,
+  and the host parses only what follows the last occurrence. The write override
+  is retained as belt and braces. Stray output still counts toward the output
+  limit and can truncate the frame, which stays bounded and fail-closed.
+- An example larger than the corpus byte cap was dropped, so a hard failure
+  caused by a large observation could be repaired without the failing input.
+  The incident example is now retained: older examples are evicted first, then
+  the newest example's `raw` is truncated and marked `truncated`, which the
+  authoring prompt is told. Consequence recorded deliberately: when a single
+  example's non-`raw` fields alone exceed the cap, the corpus may exceed it.
+  Retaining the incident is worth more than the exact byte bound.
+- `maintain` cleared the pending hard-failure incident before its early return,
+  discarding it with no attempt and no record. It is cleared only once handled.
+- `--ro-bind /lib64` made isolation permanently unavailable on hosts without
+  `/lib64`; it is now `--ro-bind-try`. The stdin write is awaited so a large
+  payload cannot reach the worker truncated.
+
+Known limitations, accepted rather than fixed: the dependency-blocking regexes in
+the host are textual, so a parser containing the literal `import(` or `require(`
+inside a string is rejected and burns a candidate attempt; and the authoring
+prompt's ban on `eval`, `Function`, clocks and randomness is unenforced, with
+nondeterminism caught only probabilistically by the two-run check. Both are
+bounded and consistent with this being local prototype containment.
