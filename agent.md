@@ -493,3 +493,22 @@ recording it. The four bounds (`maxCommands` 200, `responseMs` 30000, `episodeMs
 by the verifier, and enforced in the runner before any store row, subprocess, or
 model call. The verifier keeps its own independent re-validation. Existing import
 direction is preserved: `eval/` depends on `agent/`, never the reverse.
+
+## Second live acceptance attempt (2026-09-05)
+
+Episode `9b87ccd2-42f1-4464-9bb2-649dae15bc93`: same settings within the enforced
+limits (`--episode-ms 300000`, `--model-interval-ms 13000`). One successful command
+(`west`, 929 reported tokens), then HTTP 429 with unknown usage. Google reported
+`generate_content_free_tier_requests` limit 20 for `gemini-3.6-flash` and asked for
+a 19.2 s retry delay; the player stopped rather than shortening a delay over ten
+seconds, exactly as the batch 2 contract requires. Note the quota figure differs
+from the limit of five reported during the earlier `52132a97` run, so the free-tier
+ceiling is not a fixed number to design around.
+
+`verify` independently reproduced observations 0 through 1 and matched seeded oracle
+output; outcome still playing, no findings. This confirms the limit-bound fix in
+practice: recorded within the verifier's maxima, the trace is verifiable, unlike
+`43b7b389`. Batch 2 live acceptance is still NOT achieved — a single acknowledged
+command is bounded model-directed execution and a reproducible prefix, not a
+completed game, a discovered bug, or evidence of adaptation. Do not replay this
+episode automatically.

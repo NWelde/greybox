@@ -74,14 +74,21 @@ Live evidence in ignored `runs/greybox.sqlite` (unchanged this session):
   Provider availability, not quota — pacing never reached a rate limit. Recorded
   with `--episode-ms 420000`, which `verify` refuses, so this trace is
   unverifiable; that defect is now fixed but the episode stays unverifiable.
+- `9b87ccd2-42f1-4464-9bb2-649dae15bc93` (2026-09-05, this session, retry):
+  same settings within enforced limits. One command (`west`, 929 known tokens),
+  then HTTP 429; Google reported a free-tier limit of 20 for 3.6 Flash and a
+  19.2 s retry delay, so the player stopped instead of shortening it. `verify`
+  independently reproduced observations 0-1 and matched the seeded oracle;
+  outcome playing, no findings. Verifiable, unlike `43b7b389`.
 
 Next steps:
 
 1. Live acceptance is still the only thing standing between here and batch 3.
-   One attempt this session failed on HTTP 503 provider availability after a
-   single command. Retry when the provider recovers, staying within the enforced
-   limits (`--episode-ms 300000`) and keeping `--model-interval-ms 13000` for the
-   observed five-request free-tier limit. Then `verify`, and `replay` only if the
+   Two attempts this session each reached one command before stopping — HTTP 503
+   availability, then HTTP 429 quota. Free-tier request ceilings observed so far
+   are five and twenty, so treat the number as variable. Retry when quota resets,
+   staying within the enforced limits (`--episode-ms 300000`) and keeping
+   `--model-interval-ms 13000`. Then `verify`, and `replay` only if the
    trace is complete. Never automatically retry an unknown-usage call, switch
    models inside an episode, or replay a failed episode without being asked.
 2. No live adapter-generation call has been made. A `frozen` or `repair` episode

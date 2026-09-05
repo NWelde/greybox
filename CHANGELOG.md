@@ -44,6 +44,12 @@ are grouped as Added, Fixed, or Docs.
 - Used `--ro-bind-try` for `/lib64` and awaited the worker stdin write so isolation
   works without `/lib64` and a large payload cannot arrive truncated.
 
+### Docs
+
+- Recorded two bounded live episodes that stopped correctly on HTTP 503 and HTTP
+  429 with unknown usage; the second verified independently through observation 1.
+  Batch 2 live acceptance remains unachieved.
+
 - `game-test/main.ts`: the entry point — parses `--seed`/`-s`/`--seed=N`
   from argv, constructs the RNG and initial state, adapts
   `process.stdin`/`console.log` to `ProtocolIO`, and calls
