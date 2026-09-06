@@ -8,6 +8,22 @@ evidence or user direction warrants it, and record the reason here.
 
 ## Objective and scope
 
+Long-term direction, clarified by the user on 2026-09-05: build an autonomous
+playtester for any game and use controlled playtesting scenarios to evaluate AI
+models. The intended progression is from text to visual and real-time games,
+learning each interface from player-visible evidence. Universal game support is
+an ambition to test incrementally, not a capability established by this repo.
+
+The current implementation is **v1**, with the bounded objective below.
+[EVALUATION.md](EVALUATION.md) defines the proposed future evaluation protocol,
+integration boundaries, and release gates. It supplements this guide; its future
+contracts are not implemented CLI features and do not expand the current batch.
+Cross-model results must identify the complete agent configuration, keep game
+success, verified defect discovery, and adaptation separate, and use graders
+outside the evaluated agent's control. The current fixed invariants measure
+violation discovery through exploration; open-ended model-authored bug reports
+will require a separate reporting interface and independently reviewed graders.
+
 Build a CLI agent that discovers a text game's interface from observations,
 generates and repairs a TypeScript adapter, and reports independently verified
 bugs with deterministic reproduction commands. Demonstrate correct parsing and

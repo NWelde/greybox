@@ -1,13 +1,79 @@
 # Grey Box
 
-A Bun/TypeScript prototype for testing a text game through its terminal output.
-The player uses Gemini to interpret observations and choose commands. Optional
-adapter synthesis turns observed examples into a TypeScript parser; hard parser
-failures trigger bounded repair attempts.
+Grey Box aims to autonomously playtest any game: learn its interface, explore its
+mechanics, and produce actionable bug reports with reproduction evidence. The
+same controlled environments should also let us evaluate how well AI models
+understand unfamiliar games, plan, investigate failures, and build their own tools.
+
+**This repository is v1:** a Bun/TypeScript prototype targeting one seeded text
+dungeon crawler with two deliberately planted bugs. The player uses Gemini to
+interpret terminal observations and choose commands. Optional adapter synthesis
+turns observed examples into a TypeScript parser; hard parser failures trigger
+bounded repair attempts. Live acceptance is still in progress.
 
 Every episode records exact output, command delivery, model calls, token usage,
 and adapter versions in SQLite. A separate evaluator reproduces commands against
 the seeded game and checks bug evidence independently of the model's interpretation.
+
+## Where this is going
+
+The goal is to move from text games to visual 2D and 3D games, ultimately testing
+games through the screens, audio, and controls available to a human player.
+Generated interfaces should reduce the need to hand-write a semantic adapter
+for each game. Connecting inputs, capturing observations, and restoring a test
+state will still require platform or game integration.
+
+Playtesting should produce verified defects, explored behaviors, and reusable
+regression scenarios. Balance and usability observations can be useful too, but
+need human review. "Any game" is the long-term ambition: each supported game
+must establish what can be controlled and verified, and how reliably a failure
+can be reproduced. Exact byte replay is specific to deterministic environments
+such as this v1 game.
+
+## How it becomes a model evaluation
+
+Give different models the same game builds, starting situations, public
+instructions, tools, and interaction budgets. Let each model act, record its
+trajectory, then score what actually happened using an independent verifier.
+The result evaluates a model operating inside a specified agent harness.
+
+The proposed evaluation keeps three questions separate:
+
+| Question | Evidence |
+| --- | --- |
+| Can it learn to play an unfamiliar game? | Verified task completion, exploration, and progress within a fixed budget. |
+| Can it playtest the game effectively? | Unique verified defects reached, accurate reports, false alarms on clean controls, and reproduction success. |
+| Can it build and improve its own interface? | Parsing correctness on unseen observations, recovery after controlled changes, and total cost at comparable task performance. |
+
+Winning and bug hunting use separate tasks. A high game score does not establish
+good testing. The current fixed checker can verify violations reached by a
+model's actions; that alone does not prove the model can diagnose an arbitrary bug.
+
+For comparisons, freeze the harness and vary the policy model first. Evaluate
+adapter synthesis and repair in separate experiments, recording which model
+authors the adapter. Test new seeds, then genuinely different games; repeat runs
+and publish uncertainty, failures, and all accounted costs. Keep hidden grading
+state and answers out of both player and adapter-author context.
+
+Games already support agent evaluation in [BALROG](https://arxiv.org/abs/2411.13543),
+and [GBQA](https://arxiv.org/abs/2604.02648) specifically evaluates game bug
+discovery. Grey Box's proposed focus is the combination of interface construction,
+playtesting, and independently verified reproduction. This is a direction to
+validate, not a claim of a new benchmark result.
+
+The [evaluation design](EVALUATION.md) specifies tasks, grading, baselines,
+data splits, budgets, and the path from this prototype to a broader benchmark.
+
+## Roadmap
+
+1. **Finish v1:** demonstrate live bug discovery and a live-generated adapter,
+   evaluate unseen observations, and compare raw/frozen/repair conditions.
+2. **Test transfer across text games:** add independently built games, clean and
+   faulty variants, multiple model clients, and a versioned evaluation runner.
+3. **Add visual games:** support screen capture and timed controls, with explicit
+   reset and reproduction contracts. Evaluate perception separately from planning.
+4. **Broaden playtesting:** extend to more genres and real-time 3D environments,
+   incorporating verified regressions into future benchmark releases.
 
 ## Try the reproducible demo
 

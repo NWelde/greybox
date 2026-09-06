@@ -46,6 +46,9 @@ are grouped as Added, Fixed, or Docs.
 
 ### Docs
 
+- Clarified v1 versus the long-term goal of playtesting any game, and added a
+  research-grounded model evaluation design with independent grading, controlled
+  comparisons, transfer splits, cost/failure accounting, and staged acceptance gates.
 - Recorded a fresh live attempt that stopped on HTTP 503 after one command;
   independently verified its prefix and both README scripted bug/replay flows.
 - Added a project README with a reproducible scripted bug demo, model and adapter

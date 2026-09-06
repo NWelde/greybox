@@ -13,6 +13,17 @@ step changes so Claude can continue without the original chat. Use this existing
 
 ## Current handoff — 2026-09-05
 
+Latest direction: the user clarified that the text prototype is v1 of a project
+aiming to playtest any game and evaluate AI models through that work. `README.md`
+now leads with that vision and a staged roadmap. `EVALUATION.md` is the proposed
+evaluation design: separate gameplay, defect discovery/reporting, and adapter
+quality; freeze harnesses for model comparisons; independently grade findings;
+use controlled splits, repetitions, negative controls, and complete accounting.
+`agent.md` links the design and preserves current v1 scope. These are documentation
+changes, not implemented multi-game/benchmark features, and no evaluation campaign
+or additional live calls were launched. Continue with the existing v1 acceptance
+work; use the new design when implementing later evaluation milestones.
+
 Latest resume-readiness follow-up: added `README.md` with runnable demos and
 explicit evidence limits. Recorded both scripted bug sequences in ignored
 `runs/readme-demo.sqlite`; independently verified overheal (13/10 HP) and score
