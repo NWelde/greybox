@@ -46,6 +46,10 @@ are grouped as Added, Fixed, or Docs.
 
 ### Docs
 
+- Recorded a fresh live attempt that stopped on HTTP 503 after one command;
+  independently verified its prefix and both README scripted bug/replay flows.
+- Added a project README with a reproducible scripted bug demo, model and adapter
+  commands, verified test results, and explicit limits on current live evidence.
 - Recorded two bounded live episodes that stopped correctly on HTTP 503 and HTTP
   429 with unknown usage; the second verified independently through observation 1.
   Batch 2 live acceptance remains unachieved.

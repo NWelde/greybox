@@ -13,6 +13,25 @@ step changes so Claude can continue without the original chat. Use this existing
 
 ## Current handoff — 2026-09-05
 
+Latest resume-readiness follow-up: added `README.md` with runnable demos and
+explicit evidence limits. Recorded both scripted bug sequences in ignored
+`runs/readme-demo.sqlite`; independently verified overheal (13/10 HP) and score
+decrease (5 to 0), then replayed both complete scripts exactly. These are
+`oracle_scan` findings from scripted commands, not live discoveries.
+
+A user-requested fresh live attempt, `b688dcf8-c876-458a-ae25-ad7a145a14e5`, used
+3.6 Flash / low thinking, seed 42, 20-command / 100000-token / 300000-ms limits,
+and 13000-ms pacing. It executed `west` (896 known tokens), then stopped on
+HTTP 503 high demand with one unknown-usage call. Independent verification
+matched observations 0–1 with no findings; the incomplete episode was not
+passed to exact replay. No adapter authoring call was reached or attempted
+after the failure. Provider availability still blocks live acceptance.
+
+Immediately before this follow-up, the full suite was rerun outside the
+restrictive execution sandbox: 161 passes and only the two planted-bug failures.
+This follow-up changes documentation only and validates both README demo flows.
+The prior uncommitted quota analysis below was preserved.
+
 Batch 1 (game contract, recorded execution/replay) and batch 2 (raw player,
 verified findings) are implemented and offline-verified. Milestone 5 (first
 adapter, including withheld evaluation) is now complete offline; milestone 6
@@ -85,23 +104,45 @@ Next steps:
 
 1. Live acceptance is still the only thing standing between here and batch 3.
    Two attempts this session each reached one command before stopping — HTTP 503
-   availability, then HTTP 429 quota. Free-tier request ceilings observed so far
-   are five and twenty, so treat the number as variable. Retry when quota resets,
-   staying within the enforced limits (`--episode-ms 300000`) and keeping
+   availability, then HTTP 429 quota. Retry after the daily reset described in
+   step 2, staying within the enforced limits (`--episode-ms 300000`) and keeping
    `--model-interval-ms 13000`. Then `verify`, and `replay` only if the
    trace is complete. Never automatically retry an unknown-usage call, switch
    models inside an episode, or replay a failed episode without being asked.
-2. No live adapter-generation call has been made. A `frozen` or `repair` episode
+2. Provider quota is the binding constraint, and it is a daily one. On
+   2026-09-05 the run store held 22 model calls (16 succeeded, 6 failed) against
+   a reported `generate_content_free_tier_requests` limit of 20 for
+   `gemini-3.6-flash`. Google's docs state that requests-per-day quotas reset at
+   midnight Pacific; a 429's suggested retry delay is a generic backoff, not that
+   window, so waiting seconds never helps once the daily cap is spent. The two
+   ceilings seen so far reconcile as separate dimensions: the limit of five during
+   `52132a97` was almost certainly requests-per-minute, and twenty is
+   requests-per-day. `--model-interval-ms 13000` paces to roughly 4.6 requests per
+   minute, which stays under the per-minute limit and therefore spends the daily
+   one instead. This attribution is inferred from two error messages, not read
+   from a dashboard; the authoritative view is https://aistudio.google.com/rate-limit
+   and requires the account owner's login.
+
+   Consequence for planning: a meaningful acceptance episode of roughly twenty
+   commands costs twenty-plus calls, which is the entire free-tier day with no
+   margin for the failures that have occurred on every attempt so far. Free-tier
+   retries are unlikely to reach acceptance. Enabling paid quota is the practical
+   path and costs cents at Flash prices for a handful of episodes. That is the
+   account owner's decision to make, not something to assume.
+
+3. No live adapter-generation call has been made. A `frozen` or `repair` episode
    costs extra authoring calls on top of policy calls; budget for that against
    the same quota before attempting one.
-3. Do not claim a live-discovered bug, a completed live game, adaptation, or cost
+4. Do not claim a live-discovered bug, a completed live game, adaptation, or cost
    savings. Current live evidence proves bounded model-directed execution and
    reproducible prefixes only. Mocked-model integration tests independently
    confirm both planted bugs and a natural win.
 
 The adapter work was committed and pushed to `origin/main` as `14f50ba`
 (`Add adapter synthesis, repair, and withheld evaluation`), on top of `fc157bd`.
-The limit-bound fix and this handoff update are not yet in a commit. Preserve user-owned `.env` changes. Never reset or
+The limit-bound fix and the live-episode records followed as `126c925` and
+`aea4977`, both pushed. The README, quota analysis, and latest verification
+evidence are included in the documentation follow-up. Preserve user-owned `.env` changes. Never reset or
 clean the tree to establish a baseline. Sol workers implemented the Gemini
 client, verifier, and persistence tests. Astra identified two verifier issues and
 built the adapter lifecycle. This session's subagents wrote the withheld-evaluator
